@@ -6,10 +6,49 @@
 
 generator client {
   provider = "prisma-client"
-  output   = "../generated/prisma"
+  output   = "../src/generated"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = env("SUPABASE_DIRECT")
+}
+
+model Api {
+  id          Int        @id @default(autoincrement())
+  name        String
+  description String?
+  type        String     // "REST" | "GraphQL" | "Postman"
+  s3Url       String?    // optional: link to the uploaded OpenAPI JSON
+  endpoints   Endpoint[]
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Endpoint {
+  id          Int      @id @default(autoincrement())
+  path        String
+  method      String
+  description String?
+  api         Api      @relation(fields: [apiId], references: [id])
+  apiId       Int
+  fields      Field[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Field {
+  id          Int      @id @default(autoincrement())
+  name        String
+  type        String
+  required    Boolean  @default(false)
+  description String?
+  example     String?
+  endpoint    Endpoint @relation(fields: [endpointId], references: [id])
+  endpointId  Int
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
