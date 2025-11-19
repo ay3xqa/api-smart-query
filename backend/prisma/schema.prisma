@@ -6,12 +6,14 @@
 
 generator client {
   provider = "prisma-client"
+  previewFeatures = ["postgresqlExtensions"]
   output   = "../src/generated"
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("SUPABASE_DIRECT")
+  extensions = [vector]
 }
 
 model Api {
@@ -33,13 +35,14 @@ model Endpoint {
   description String?
   api         Api      @relation(fields: [apiId], references: [id])
   apiId       Int
-  fields      Field[]
+  fields      EndpointField[]
 
+  embedding   Unsupported("vector(1536)")?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
 
-model Field {
+model EndpointField {
   id          Int      @id @default(autoincrement())
   name        String
   type        String
