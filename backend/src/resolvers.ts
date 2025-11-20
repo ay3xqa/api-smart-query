@@ -1,11 +1,11 @@
-import { uploadFileToS3 } from "./s3-operations";
+import { downloadFileFromS3 } from "./s3-operations";
 import { PrismaClient } from "./generated/client";
 import { OpenAIClient } from "./open-ai";
 import { Pool } from "pg";
 
-
 const prisma = new PrismaClient();
 
+// helper to extract endpoints from OpenAPI
 function extractEndpointsFromOpenApi(spec: any) {
   const endpoints: any[] = [];
   const paths = spec.paths || {};
@@ -35,17 +35,9 @@ function extractEndpointsFromOpenApi(spec: any) {
       });
     }
   }
-  console.log("Extracted endpoints:", endpoints);
+
   return endpoints;
 }
-
-type FieldInput = {
-  name: string;
-  type: string;
-  required: boolean;
-  description: string | null;
-  example: string | null;
-};
 
 // --- Resolvers ---
 export const resolvers = {
@@ -54,11 +46,8 @@ export const resolvers = {
   },
 
   Mutation: {
-    uploadOpenApi: async (_parent: any, { fileName, fileBase64 }: any) => {
-      const buffer = Buffer.from(fileBase64, "base64");
-      const s3Key = `uploads/${fileName}`;
-      const s3Url = await uploadFileToS3(buffer, s3Key, "application/json");
-
+    uploadOpenApi: async (_parent: any, { fileKey }: { fileKey: string }) => {
+      const buffer = await downloadFileFromS3(fileKey);
       const spec = JSON.parse(buffer.toString("utf8"));
       const endpointsData = extractEndpointsFromOpenApi(spec);
 
@@ -67,60 +56,70 @@ export const resolvers = {
           name: spec.info?.title || "Unnamed API",
           description: spec.info?.description || null,
           type: "REST",
-          s3Url,
+          s3Url: `s3://${process.env.AWS_S3_BUCKET_NAME}/${fileKey}`,
         },
       });
 
-// create endpoints + fields and collect created ids
-      const createdEndpoints: { id: number; meta: any }[] = [];
-      for (const e of endpointsData) {
-        const created = await prisma.endpoint.create({
-          data: {
-            path: e.path,
-            method: e.method,
-            description: e.description,
-            apiId: api.id,
-            fields: {
-              create: e.fields.map((f: FieldInput) => ({
-                name: f.name,
-                type: f.type,
-                required: f.required,
-                description: f.description,
-                example: f.example,
-              })),
-            },
-          },
-        });
-        createdEndpoints.push({ id: created.id, meta: e });
-      }
+      const endpointRows = endpointsData.map((e) => ({
+        path: e.path,
+        method: e.method,
+        description: e.description,
+        apiId: api.id,
+      }));
 
-      // Build embedding inputs (one input per endpoint)
-      const embeddingInputs = createdEndpoints.map((ce) => {
-        const e = ce.meta;
-        const fieldsText = (e.fields || [])
-          .map((f: any) => `${f.name}:${f.type}:${String(f.example ?? "")}`)
-          .join(" ");
-        return `${e.method} ${e.path} ${e.description ?? ""} ${fieldsText}`;
+      const createdEndpoints = await prisma.endpoint.createMany({
+        data: endpointRows,
+        skipDuplicates: true,
       });
 
-      if (embeddingInputs.length > 0 && process.env.OPENAI_API_KEY) {
+      const endpointRecords = await prisma.endpoint.findMany({
+        where: { apiId: api.id },
+      });
+
+      const fieldRows = endpointsData.flatMap((e, idx) =>
+        e.fields.map((f : any) => ({
+          name: f.name,
+          type: f.type,
+          required: f.required,
+          description: f.description,
+          example: f.example,
+          endpointId: endpointRecords[idx].id,
+        }))
+      );
+
+      if (fieldRows.length > 0) {
+        await prisma.endpointField.createMany({ data: fieldRows, skipDuplicates: true });
+      }
+
+      if (process.env.OPENAI_API_KEY) {
         const model = process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small";
-        const resp = await OpenAIClient.embeddings.create({
-          model,
-          input: embeddingInputs,
-        });
+        const pool = new Pool({ connectionString: process.env.SUPABASE_DIRECT });
 
-        // resp.data is array of embeddings in same order as inputs
-        for (let i = 0; i < resp.data.length; i++) {
-          const vector = resp.data[i].embedding.map((x: any) => Number(x));
-          const vectorString = `[${vector.join(",")}]`;
-          const endpointId = createdEndpoints[i].id;
-          const pool = new Pool({ connectionString: process.env.SUPABASE_DIRECT });
+        const chunkSize = 10;
+        for (let i = 0; i < endpointRecords.length; i += chunkSize) {
+          const chunkEndpoints = endpointRecords.slice(i, i + chunkSize);
+          const chunkInput = chunkEndpoints.map((ep, idx) => {
+            const fieldsText = endpointsData[i + idx].fields
+              .map((f: any) => `${f.name}:${f.type}:${String(f.example ?? "")}`)
+              .join(" ");
+            return `${ep.method} ${ep.path} ${ep.description ?? ""} ${fieldsText}`;
+          });
 
-          await pool.query(
-            'UPDATE "Endpoint" SET "embedding" = $1::vector WHERE id = $2',
-            [vectorString, endpointId]
-          );
+          const resp = await OpenAIClient.embeddings.create({
+            model,
+            input: chunkInput,
+          });
+
+          for (let j = 0; j < resp.data.length; j++) {
+            const vector = resp.data[j].embedding.map(Number);
+            const vectorString = `[${vector.join(",")}]`;
+            const endpointId = chunkEndpoints[j].id;
+
+            await pool.query(
+              'UPDATE "Endpoint" SET "embedding" = $1::vector WHERE id = $2',
+              [vectorString, endpointId]
+            );
+          }
         }
       }
 
