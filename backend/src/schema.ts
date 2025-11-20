@@ -31,6 +31,7 @@ type Mutation {
 
 type Query {
   hello: String!
+  askApiQuestion(apiId: Int!, question: String!): String!
 }
 
 `;

@@ -2,10 +2,11 @@ import { downloadFileFromS3 } from "./s3-operations";
 import { PrismaClient } from "./generated/client";
 import { OpenAIClient } from "./open-ai";
 import { Pool } from "pg";
+import dotenv from "dotenv";
 
+dotenv.config();
 const prisma = new PrismaClient();
 
-// helper to extract endpoints from OpenAPI
 function extractEndpointsFromOpenApi(spec: any) {
   const endpoints: any[] = [];
   const paths = spec.paths || {};
@@ -43,10 +44,93 @@ function extractEndpointsFromOpenApi(spec: any) {
 export const resolvers = {
   Query: {
     hello: () => "Hello from GraphQL!",
+
+    askApiQuestion: async (_parent: any, { apiId, question }: { apiId: number; question: string }) => {
+      if (!process.env.OPENAI_API_KEY) {
+        throw new Error("OpenAI API key not set");
+      }
+      if (!process.env.SUPABASE_DIRECT) {
+        throw new Error("Supabase direct connection string not set");
+      }
+      if (!process.env.OPENAI_EMBEDDING_MODEL) {
+        throw new Error("OpenAI embedding model not set");
+      }
+      if (!process.env.OPENAI_CHAT_MODEL) {
+        throw new Error("OpenAI chat model not set");
+      }
+      const pool = new Pool({ connectionString: process.env.SUPABASE_DIRECT });
+
+      const question_embedding = await OpenAIClient.embeddings.create({
+        model: process.env.OPENAI_EMBEDDING_MODEL,
+        input: question
+      })
+      const question_vector = question_embedding.data[0].embedding.map(Number);
+      const vector_string = `[${question_vector.join(",")}]`;
+
+      //Context Building - to always be finetuning
+      const query = `
+        SELECT e.id, e.path, e.method, e.description,
+              json_agg(json_build_object(
+                'name', f.name,
+                'type', f.type,
+                'description', f.description,
+                'example', f.example
+              )) AS fields
+        FROM "Endpoint" e
+        LEFT JOIN "EndpointField" f ON f."endpointId" = e.id
+        WHERE e."apiId" = $1
+        GROUP BY e.id
+        ORDER BY e."embedding" <#> $2::vector
+        LIMIT 5;
+      `;
+
+      const { rows } = await pool.query(query, [apiId, vector_string]);
+
+      // Build context including fields
+      const contextText = rows
+        .map((r: any) => {
+          const fieldsText = (r.fields || [])
+            .map((f: any) => `${f.name}:${f.type}:${f.example ?? ""}`)
+            .join(" ");
+          return `${r.method} ${r.path} ${r.description ?? ""} ${fieldsText}`;
+        })
+        .join("\n\n");
+
+      const gptResp = await OpenAIClient.chat.completions.create({
+        model: process.env.OPENAI_CHAT_MODEL,
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert assistant for APIs. Use the context below to answer the question.",
+          },
+          {
+            role: "user",
+            content: `Context:\n${contextText}\n\nQuestion: ${question}`,
+          },
+        ],
+        max_completion_tokens: 3000,
+      });
+      console.log(`Context:\n${contextText}\n\nQuestion: ${question}`)
+      const answer = gptResp.choices[0].message?.content ?? "No answer available";
+
+      return answer;
+    }
   },
 
   Mutation: {
     uploadOpenApi: async (_parent: any, { fileKey }: { fileKey: string }) => {
+      if (!process.env.AWS_S3_BUCKET_NAME) {
+        throw new Error("AWS S3 bucket name not set");
+      }
+      if (!process.env.OPENAI_API_KEY) {
+        throw new Error("OpenAI API key not set");
+      }
+      if (!process.env.SUPABASE_DIRECT) {
+        throw new Error("Supabase direct connection string not set");
+      }
+      if (!process.env.OPENAI_EMBEDDING_MODEL) {
+        throw new Error("OpenAI embedding model not set");
+      }
       const buffer = await downloadFileFromS3(fileKey);
       const spec = JSON.parse(buffer.toString("utf8"));
       const endpointsData = extractEndpointsFromOpenApi(spec);
@@ -92,7 +176,7 @@ export const resolvers = {
       }
 
       if (process.env.OPENAI_API_KEY) {
-        const model = process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small";
+        const model = process.env.OPENAI_EMBEDDING_MODEL;
         const pool = new Pool({ connectionString: process.env.SUPABASE_DIRECT });
 
         const chunkSize = 10;
