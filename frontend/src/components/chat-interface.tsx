@@ -64,7 +64,7 @@ export function ChatInterface({ initialApiId }: ChatInterfaceProps) {
   }, [messages])
 
   const handleApiSelect = (apiId: number) => {
-    setSelectedApiId(apiId)
+    setSelectedApiId(apiId as number)
     setMessages([])
   }
 
@@ -100,7 +100,7 @@ export function ChatInterface({ initialApiId }: ChatInterfaceProps) {
         body: JSON.stringify({
           query,
           variables: {
-            apiId: selectedApiId,
+            apiId: Number(selectedApiId),
             question: userMessage.content,
           },
         }),
