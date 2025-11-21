@@ -26,11 +26,12 @@ type Api {
 }
 
 type Mutation {
-  uploadOpenApi(fileName: String!, fileBase64: String!): Api!
+  uploadOpenApi(fileKey: String!): Api!
 }
 
 type Query {
   hello: String!
+  askApiQuestion(apiId: Int!, question: String!): String!
 }
 
 `;
