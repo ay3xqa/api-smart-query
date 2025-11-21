@@ -29,9 +29,15 @@ type Mutation {
   uploadOpenApi(fileKey: String!): Api!
 }
 
+type PresignedUrlResponse {
+  uploadUrl: String!
+  fileKey: String!
+}
+
 type Query {
   hello: String!
   askApiQuestion(apiId: Int!, question: String!): String!
+  getUploadUrl(fileName: String!): PresignedUrlResponse!
 }
 
 `;

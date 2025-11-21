@@ -1,4 +1,4 @@
-import { downloadFileFromS3 } from "./s3-operations";
+import { downloadFileFromS3, create_presigned_upload_url } from "./s3-operations";
 import { PrismaClient } from "./generated/client";
 import { OpenAIClient } from "./open-ai";
 import { Pool } from "pg";
@@ -114,7 +114,16 @@ export const resolvers = {
       const answer = gptResp.choices[0].message?.content ?? "No answer available";
 
       return answer;
-    }
+    },
+
+    getUploadUrl: async (_: any, { fileName }: { fileName: string }) => {
+
+      if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY || !process.env.AWS_S3_BUCKET_NAME) {
+        throw new Error("AWS environment variables not configured");
+      }
+
+      return create_presigned_upload_url(fileName)
+    },
   },
 
   Mutation: {

@@ -1,4 +1,5 @@
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Readable } from "stream";
 import dotenv from "dotenv";
 
@@ -42,4 +43,24 @@ export async function downloadFileFromS3(fileKey: string): Promise<Buffer> {
   }
 
   return Buffer.concat(chunks);
+}
+
+export async function create_presigned_upload_url(filename: string){
+    const timestamp = Date.now();
+    const fileKey = `${timestamp}-${filename}`;
+
+    // Prepare the S3 put request
+    const command = new PutObjectCommand({
+      Bucket: process.env.AWS_S3_BUCKET_NAME,
+      Key: fileKey,
+      ContentType: "application/json",
+    });
+
+    // Generate presigned URL
+    const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 300 });
+
+    return {
+      uploadUrl,
+      fileKey,
+    };
 }
