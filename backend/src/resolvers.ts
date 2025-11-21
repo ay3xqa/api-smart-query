@@ -124,6 +124,12 @@ export const resolvers = {
 
       return create_presigned_upload_url(fileName)
     },
+
+    getAllApis: async () => {
+      return prisma.api.findMany({
+        include: { endpoints: { include: { fields: true } } },
+      });
+    }
   },
 
   Mutation: {

@@ -38,6 +38,7 @@ type Query {
   hello: String!
   askApiQuestion(apiId: Int!, question: String!): String!
   getUploadUrl(fileName: String!): PresignedUrlResponse!
+  getAllApis: [Api!]!
 }
 
 `;
