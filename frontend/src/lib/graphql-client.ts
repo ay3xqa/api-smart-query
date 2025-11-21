@@ -73,6 +73,39 @@ export async function uploadOpenApiSpec(fileKey: string) {
   return result.data.uploadOpenApi
 }
 
+export async function getAllApis() {
+  const graphqlEndpoint = process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || 'http://localhost:4000/graphql'
+
+  const query = `
+    query GetAllApis {
+      getAllApis {
+        id
+        description
+        name
+        type
+      }
+    }
+  `
+
+  const response = await fetch(graphqlEndpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      query,
+    }),
+  })
+
+  const result = await response.json()
+
+  if (result.errors) {
+    throw new Error(result.errors[0].message)
+  }
+
+  return result.data.getAllApis
+}
+
 export async function askApiQuestion(apiId: number, question: string) {
   const graphqlEndpoint = process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || 'http://localhost:4000/graphql'
 

@@ -36,7 +36,7 @@ export default function Home() {
             </p>
           </div>
 
-          <Tabs className="w-full max-w-4xl">
+          <Tabs className="w-full">
             <TabsList className="w-full max-w-md mx-auto">
               <TabsTrigger
                 active={activeTab === 'upload'}
@@ -131,7 +131,7 @@ export default function Home() {
             </TabsContent>
 
             <TabsContent hidden={activeTab !== 'chat'}>
-              <ChatInterface apiId={currentApiId} />
+              <ChatInterface initialApiId={currentApiId} />
             </TabsContent>
           </Tabs>
         </div>

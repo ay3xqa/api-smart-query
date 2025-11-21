@@ -2,9 +2,10 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
-import { Send, Bot, User, Loader2 } from 'lucide-react'
+import { Send, Bot, User, Loader2, Database } from 'lucide-react'
+import { getAllApis } from '@/lib/graphql-client'
 
 interface Message {
   id: string
@@ -13,15 +14,46 @@ interface Message {
   timestamp: Date
 }
 
-interface ChatInterfaceProps {
-  apiId: number | null
+interface Api {
+  id: number
+  name: string
+  description: string | null
+  type: string
 }
 
-export function ChatInterface({ apiId }: ChatInterfaceProps) {
+interface ChatInterfaceProps {
+  initialApiId?: number | null
+}
+
+export function ChatInterface({ initialApiId }: ChatInterfaceProps) {
+  const [apis, setApis] = useState<Api[]>([])
+  const [selectedApiId, setSelectedApiId] = useState<number | null>(initialApiId || null)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [loadingApis, setLoadingApis] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const fetchApis = async () => {
+      try {
+        const fetchedApis = await getAllApis()
+        setApis(fetchedApis)
+      } catch (error) {
+        console.error('Failed to fetch APIs:', error)
+      } finally {
+        setLoadingApis(false)
+      }
+    }
+
+    fetchApis()
+  }, [])
+
+  useEffect(() => {
+    if (initialApiId) {
+      setSelectedApiId(initialApiId)
+    }
+  }, [initialApiId])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -31,9 +63,14 @@ export function ChatInterface({ apiId }: ChatInterfaceProps) {
     scrollToBottom()
   }, [messages])
 
+  const handleApiSelect = (apiId: number) => {
+    setSelectedApiId(apiId)
+    setMessages([])
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim() || !apiId || isLoading) return
+    if (!input.trim() || !selectedApiId || isLoading) return
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -63,7 +100,7 @@ export function ChatInterface({ apiId }: ChatInterfaceProps) {
         body: JSON.stringify({
           query,
           variables: {
-            apiId,
+            apiId: selectedApiId,
             question: userMessage.content,
           },
         }),
@@ -103,25 +140,68 @@ export function ChatInterface({ apiId }: ChatInterfaceProps) {
     }
   }
 
-  if (!apiId) {
-    return (
-      <Card className="w-full max-w-4xl mx-auto border-border/50">
-        <CardContent className="flex items-center justify-center p-12">
-          <div className="text-center space-y-3">
-            <Bot className="w-12 h-12 text-muted-foreground mx-auto" />
-            <h3 className="text-lg font-semibold">No API Selected</h3>
-            <p className="text-sm text-muted-foreground">
-              Please upload an API specification first to start chatting.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
+  const selectedApi = apis.find((api) => api.id === selectedApiId)
 
   return (
-    <Card className="w-full max-w-4xl mx-auto border-border/50 flex flex-col h-[600px]">
-      <CardContent className="flex-1 flex flex-col p-0">
+    <div className="w-full max-w-6xl mx-auto space-y-6">
+      <div>
+        <h2 className="text-2xl font-semibold mb-4">Select an API</h2>
+        {loadingApis ? (
+          <div className="flex items-center justify-center p-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : apis.length === 0 ? (
+          <Card className="border-border/50">
+            <CardContent className="flex items-center justify-center p-12">
+              <div className="text-center space-y-3">
+                <Database className="w-12 h-12 text-muted-foreground mx-auto" />
+                <h3 className="text-lg font-semibold">No APIs Available</h3>
+                <p className="text-sm text-muted-foreground">
+                  Upload an API specification in the Upload tab to get started.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {apis.map((api) => (
+              <Card
+                key={api.id}
+                className={`cursor-pointer transition-all border-2 ${
+                  selectedApiId === api.id
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border/50 hover:border-primary/50 hover:bg-accent/5'
+                }`}
+                onClick={() => handleApiSelect(api.id)}
+              >
+                <CardHeader>
+                  <CardTitle className="text-lg">{api.name}</CardTitle>
+                  {api.description && (
+                    <CardDescription className="line-clamp-2">
+                      {api.description}
+                    </CardDescription>
+                  )}
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-1 rounded bg-muted text-muted-foreground font-medium">
+                      {api.type}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {selectedApi && (
+        <div>
+          <h2 className="text-2xl font-semibold mb-4">
+            Chat with {selectedApi.name}
+          </h2>
+          <Card className="border-border/50 flex flex-col h-[600px]">
+            <CardContent className="flex-1 flex flex-col p-0">
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {messages.length === 0 ? (
             <div className="flex items-center justify-center h-full">
@@ -218,5 +298,8 @@ export function ChatInterface({ apiId }: ChatInterfaceProps) {
         </div>
       </CardContent>
     </Card>
+        </div>
+      )}
+    </div>
   )
 }
