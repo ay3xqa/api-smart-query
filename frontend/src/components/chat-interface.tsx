@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Textarea } from '@/components/ui/textarea'
 import { Send, Bot, User, Loader2, Database } from 'lucide-react'
 import { getAllApis } from '@/lib/graphql-client'
+import { MessageContent } from '@/components/message-content'
 
 interface Message {
   id: string
@@ -228,18 +229,18 @@ export function ChatInterface({ initialApiId }: ChatInterfaceProps) {
                   </div>
                 )}
                 <div
-                  className={`flex flex-col max-w-[70%] ${
+                  className={`flex flex-col max-w-[85%] min-w-0 ${
                     message.role === 'user' ? 'items-end' : 'items-start'
                   }`}
                 >
                   <div
-                    className={`rounded-lg px-4 py-3 ${
+                    className={`rounded-lg px-4 py-3 w-full ${
                       message.role === 'user'
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-muted'
                     }`}
                   >
-                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    <MessageContent content={message.content} role={message.role} />
                   </div>
                   <span className="text-xs text-muted-foreground mt-1">
                     {message.timestamp.toLocaleTimeString([], {
