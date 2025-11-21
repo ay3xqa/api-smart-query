@@ -1,36 +1,88 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Comprehend Frontend
+
+A modern, elegant Next.js frontend for the Comprehend API intelligence platform. Upload OpenAPI specifications and interact with your APIs using AI-powered insights.
+
+## Features
+
+- Clean, modern UI with dark gray background and sapphire blue accents
+- Drag-and-drop file upload for OpenAPI JSON specifications
+- Real-time feedback and validation
+- Integration with GraphQL backend and S3 storage
+- Responsive design with shadcn/ui components
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+ installed
+- Backend GraphQL server running
+- AWS S3 bucket configured
+
+### Installation
+
+```bash
+npm install
+```
+
+### Environment Variables
+
+Create a `.env.local` file in the frontend directory:
+
+```env
+NEXT_PUBLIC_GRAPHQL_ENDPOINT=http://localhost:4000/graphql
+
+# AWS credentials for S3 uploads
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+AWS_REGION=us-east-1
+AWS_S3_BUCKET_NAME=your_bucket_name
+```
+
+### Running the Development Server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) to view the application.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Building for Production
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+npm start
+```
 
-## Learn More
+## Tech Stack
 
-To learn more about Next.js, take a look at the following resources:
+- Next.js 16 with App Router
+- React 19
+- TypeScript
+- Tailwind CSS 4
+- shadcn/ui components
+- Lucide React icons
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Project Structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+frontend/
+├── src/
+│   ├── app/
+│   │   ├── api/upload/     # S3 upload API route
+│   │   ├── layout.tsx      # Root layout
+│   │   └── page.tsx        # Home page
+│   ├── components/
+│   │   ├── ui/             # shadcn/ui components
+│   │   └── file-upload.tsx # File upload component
+│   └── lib/
+│       ├── utils.ts        # Utility functions
+│       └── graphql-client.ts # GraphQL client
+```
 
-## Deploy on Vercel
+## Color Scheme
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Background: Dark gray (#1a1a1a)
+- Text: White (#ffffff)
+- Primary/Accent: Sapphire blue (#0f52ba)
+- Cards: Subtle gray (#242424)
+- Borders: Muted gray (#3a3a3a)
