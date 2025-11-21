@@ -68,22 +68,49 @@ export function FileUpload({ onUploadSuccess }: FileUploadProps) {
       const fileContent = await file.text()
       JSON.parse(fileContent)
 
-      const formData = new FormData()
-      formData.append('file', file)
+      const graphqlEndpoint = process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || 'http://localhost:4000/graphql'
 
-      const uploadResponse = await fetch('/api/upload', {
+      const presignedUrlQuery = `
+        query GetUploadUrl($fileName: String!) {
+          getUploadUrl(fileName: $fileName) {
+            uploadUrl
+            fileKey
+          }
+        }
+      `
+
+      const presignedResponse = await fetch(graphqlEndpoint, {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: presignedUrlQuery,
+          variables: {
+            fileName: file.name,
+          },
+        }),
+      })
+
+      const presignedResult = await presignedResponse.json()
+
+      if (presignedResult.errors) {
+        throw new Error(presignedResult.errors[0].message)
+      }
+
+      const { uploadUrl, fileKey } = presignedResult.data.getUploadUrl
+
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: file,
       })
 
       if (!uploadResponse.ok) {
-        const errorData = await uploadResponse.json()
-        throw new Error(errorData.error || 'Failed to upload to S3')
+        throw new Error('Failed to upload file to S3')
       }
-
-      const { fileKey } = await uploadResponse.json()
-
-      const graphqlEndpoint = process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || 'http://localhost:4000/graphql'
 
       const mutation = `
         mutation UploadOpenApi($fileKey: String!) {

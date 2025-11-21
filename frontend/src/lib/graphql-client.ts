@@ -1,3 +1,37 @@
+export async function getUploadUrl(fileName: string) {
+  const graphqlEndpoint = process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || 'http://localhost:4000/graphql'
+
+  const query = `
+    query GetUploadUrl($fileName: String!) {
+      getUploadUrl(fileName: $fileName) {
+        uploadUrl
+        fileKey
+      }
+    }
+  `
+
+  const response = await fetch(graphqlEndpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      query,
+      variables: {
+        fileName,
+      },
+    }),
+  })
+
+  const result = await response.json()
+
+  if (result.errors) {
+    throw new Error(result.errors[0].message)
+  }
+
+  return result.data.getUploadUrl
+}
+
 export async function uploadOpenApiSpec(fileKey: string) {
   const graphqlEndpoint = process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || 'http://localhost:4000/graphql'
 
